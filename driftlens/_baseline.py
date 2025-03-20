@@ -335,38 +335,78 @@ class BaselineEstimatorMethod(ABC):
         """ Abstract Method: Estimates the baseline. """
         pass
 
-    def _fit_pca(self, E, Y):
-        """ Fits a PCA for each label and for the entire batch.
+    
+    # def _fit_pca(self, E, Y):
+    #     """ Fits a PCA for each label and for the entire batch.
 
-        Args:
-            E (:obj:`np.ndarray`): Embedding vectors of shape (m, n_e), where m is the number of samples and n_e the embedding dimensionality.
-            Y (:obj:`np.ndarray`): Labels (predicted/original) of shape (m, 1), where m is the number of samples.
+    #     Args:
+    #         E (:obj:`np.ndarray`): Embedding vectors of shape (m, n_e), where m is the number of samples and n_e the embedding dimensionality.
+    #         Y (:obj:`np.ndarray`): Labels (predicted/original) of shape (m, 1), where m is the number of samples.
 
-        Returns:
-            :obj:`sklearn.decomposition.PCA`: PCA computed over the entire batch.
-            :obj:`dict`: Dictionary containing the per-label PCA fitted for each label {'label': PCA_l}.
-        """
-        # Fit the PCA for the entire batch of data (per-batch)
-        batch_PCA = PCA(n_components=self.batch_n_pc)
-        batch_PCA.fit(E)
+    #     Returns:
+    #         :obj:`sklearn.decomposition.PCA`: PCA computed over the entire batch.
+    #         :obj:`dict`: Dictionary containing the per-label PCA fitted for each label {'label': PCA_l}.
+    #     """
+    #     # Fit the PCA for the entire batch of data (per-batch)
+    #     batch_PCA = PCA(n_components=self.batch_n_pc)
+    #     batch_PCA.fit(E)
 
-        # Fit a per-label PCA for each label - "l": PCA_l
-        per_label_PCA_dict = {}
+    #     # Fit a per-label PCA for each label - "l": PCA_l
+    #     per_label_PCA_dict = {}
 
-        for label in self.label_list:
+    #     for label in self.label_list:
 
-            # Select examples of the current label (predicted/original)
-            E_l_idxs = np.nonzero(Y == label)  # Indices of embedding vectors E for label l
-            E_l = E[E_l_idxs]  # Embedding vectors E for label l
+    #         # Select examples of the current label (predicted/original)
+    #         E_l_idxs = np.nonzero(Y == label)  # Indices of embedding vectors E for label l
+    #         E_l = E[E_l_idxs]  # Embedding vectors E for label l
 
-            # Fit PCA with baseline examples of the current label
-            per_label_PCA = PCA(n_components=self.per_label_n_pc)
-            per_label_PCA.fit(E_l)
+    #         # Fit PCA with baseline examples of the current label
+    #         per_label_PCA = PCA(n_components=self.per_label_n_pc)
+    #         per_label_PCA.fit(E_l)
 
-            # Store the PCA model in the dictionary
-            per_label_PCA_dict[str(label)] = per_label_PCA
+    #         # Store the PCA model in the dictionary
+    #         per_label_PCA_dict[str(label)] = per_label_PCA
 
-        return batch_PCA, per_label_PCA_dict
+    #     return batch_PCA, per_label_PCA_dict
+
+def _fit_pca(self, E, Y):
+    """ Fits a PCA for each label and for the entire batch.
+
+    Args:
+        E (:obj:`np.ndarray`): Embedding vectors of shape (m, n_e), where m is the number of samples and n_e the embedding dimensionality.
+        Y (:obj:`np.ndarray`): Labels (predicted/original) of shape (m, 1), where m is the number of samples.
+
+    Returns:
+        :obj:`sklearn.decomposition.PCA`: PCA computed over the entire batch.
+        :obj:`dict`: Dictionary containing the per-label PCA fitted for each label {'label': PCA_l}.
+    """
+    # Fit the PCA for the entire batch of data (per-batch)
+    batch_PCA = PCA(n_components=self.batch_n_pc)
+    batch_PCA.fit(E)
+
+    # Fit a per-label PCA for each label - "l": PCA_l
+    per_label_PCA_dict = {}
+
+    for label in self.label_list:
+        # Select examples of the current label (predicted/original)
+        E_l_idxs = np.nonzero(Y == label)  # Indices of embedding vectors E for label l
+        E_l = E[E_l_idxs]  # Embedding vectors E for label l
+        m_l = len(E_l)  # Number of samples for this label
+
+        # Adaptive dimensionality reduction: ensure n_components <= number of samples
+        d_l_prime = min(m_l, self.per_label_n_pc, E.shape[1])  # Also ensure <= embedding dimensionality
+        if d_l_prime < 1:  # Skip labels with no samples
+            per_label_PCA_dict[str(label)] = None
+            continue
+
+        # Fit PCA with baseline examples of the current label
+        per_label_PCA = PCA(n_components=d_l_prime)
+        per_label_PCA.fit(E_l)
+
+        # Store the PCA model in the dictionary
+        per_label_PCA_dict[str(label)] = per_label_PCA
+
+    return batch_PCA, per_label_PCA_dict
 
 
 class StandardBaselineEstimator(BaselineEstimatorMethod):
