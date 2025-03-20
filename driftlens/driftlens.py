@@ -289,35 +289,35 @@ class DriftLens:
 
         return {'per-batch': per_batch_drift_probabilities, 'per-label': per_label_drift_probabilities}
 
-    @staticmethod
-    def _compute_frechet_distribution_distances(label_list, baseline,  E_w, Y_w, window_id=0):
-        """ Computes the frechet distribution distance (FID) per-batch and per-label.
+    # @staticmethod
+    # def _compute_frechet_distribution_distances(label_list, baseline,  E_w, Y_w, window_id=0):
+    #     """ Computes the frechet distribution distance (FID) per-batch and per-label.
 
-        Args:
-            label_list (:obj:`list(str)`):
-            baseline (:obj:`BaselineClass`): The baseline object.
-            E_w: The embeddings of the current window.
-            Y_w: The predicted labels of the current window.
-            window_id:
+    #     Args:
+    #         label_list (:obj:`list(str)`):
+    #         baseline (:obj:`BaselineClass`): The baseline object.
+    #         E_w: The embeddings of the current window.
+    #         Y_w: The predicted labels of the current window.
+    #         window_id:
 
-        Returns:
-            a dictionary containing the per-batch (window_distribution_distances_dict[batch]) and the per-label
-        """
-        window_distribution_distances_dict = {"window_id": window_id}
+    #     Returns:
+    #         a dictionary containing the per-batch (window_distribution_distances_dict[batch]) and the per-label
+    #     """
+    #     window_distribution_distances_dict = {"window_id": window_id}
 
-        mean_b_batch = baseline.get_batch_mean_vector()
-        covariance_b_batch = baseline.get_batch_covariance_matrix()
+    #     mean_b_batch = baseline.get_batch_mean_vector()
+    #     covariance_b_batch = baseline.get_batch_covariance_matrix()
 
-        # Reduce the embedding dimensionality with PCA for the entire current window w
-        E_w_reduced = baseline.get_batch_PCA_model().transform(E_w)
+    #     # Reduce the embedding dimensionality with PCA for the entire current window w
+    #     E_w_reduced = baseline.get_batch_PCA_model().transform(E_w)
 
-        mean_w_batch = fdd.get_mean(E_w_reduced)
-        covariance_w_batch = fdd.get_covariance(E_w_reduced)
+    #     mean_w_batch = fdd.get_mean(E_w_reduced)
+    #     covariance_w_batch = fdd.get_covariance(E_w_reduced)
 
-        distribution_distance_batch = fdd.frechet_distance(mean_b_batch,
-                                                           mean_w_batch,
-                                                           covariance_b_batch,
-                                                           covariance_w_batch)
+    #     distribution_distance_batch = fdd.frechet_distance(mean_b_batch,
+    #                                                        mean_w_batch,
+    #                                                        covariance_b_batch,
+    #                                                        covariance_w_batch)
 
         # window_distribution_distances_dict["per-batch"] = distribution_distance_batch
         # window_distribution_distances_dict["per-label"] = {}

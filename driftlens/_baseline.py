@@ -370,49 +370,43 @@ class BaselineEstimatorMethod(ABC):
     #     return batch_PCA, per_label_PCA_dict
 
     def _fit_pca(self, E, Y):
-        """ Fits a PCA for each label and for the entire batch.
+        print("Debug: Inside _fit_pca")
+        print("E shape:", E.shape, "E dtype:", E.dtype)
+        print("Y shape:", Y.shape, "Y dtype:", Y.dtype)
+        print("Y unique values:", np.unique(Y))
+        print("Label list:", self.label_list)
 
-        Args:
-            E (:obj:`np.ndarray`): Embedding vectors of shape (m, n_e), where m is the number of samples and n_e the embedding dimensionality.
-            Y (:obj:`np.ndarray`): Labels (predicted/original) of shape (m, 1), where m is the number of samples.
-
-        Returns:
-            :obj:`sklearn.decomposition.PCA`: PCA computed over the entire batch.
-            :obj:`dict`: Dictionary containing the per-label PCA fitted for each label {'label': PCA_l}.
-        """
-        # Fit the PCA for the entire batch of data (per-batch)
         batch_PCA = PCA(n_components=self.batch_n_pc)
         batch_PCA.fit(E)
 
-        # Fit a per-label PCA for each label - "l": PCA_l
         per_label_PCA_dict = {}
-        per_label_n_samples_dict = {}  # Store the number of samples per label
+        per_label_n_samples_dict = {}
 
         for label in self.label_list:
-            # Select examples of the current label (predicted/original)
-            E_l_idxs = np.nonzero(Y == label)[0]  # Extract the first element of the tuple
-            E_l = E[E_l_idxs]  # Embedding vectors E for label l
-            m_l = len(E_l)  # Number of samples for this label
-
-            # Store the number of samples for weighted FDD
+            print(f"Debug: Processing label {label}, type: {type(label)}")
+            comparison_result = Y == label
+            print(f"Debug: Y == label result shape: {comparison_result.shape}, dtype: {comparison_result.dtype}")
+            print(f"Debug: Y == label result sample: {comparison_result[:10]}")
+            E_l_idxs = np.nonzero(Y == label)[0]
+            print(f"Debug: E_l_idxs for label {label}: {E_l_idxs}, type: {type(E_l_idxs)}, shape: {E_l_idxs.shape}")
+            print(f"Debug: E_l_idxs sample: {E_l_idxs[:10]}")
+            try:
+                E_l = E[E_l_idxs]
+            except Exception as e:
+                print(f"Debug: Failed to index E with E_l_idxs for label {label}: {e}")
+                raise
+            m_l = len(E_l)
             per_label_n_samples_dict[str(label)] = m_l
-
-            # Adaptive dimensionality reduction: ensure n_components <= number of samples
-            d_l_prime = min(m_l, self.per_label_n_pc, E.shape[1])  # Also ensure <= embedding dimensionality
-            if d_l_prime < 1:  # Skip labels with no samples
+            d_l_prime = min(m_l, self.per_label_n_pc, E.shape[1])
+            print(f"Debug: d_l_prime for label {label}: {d_l_prime}")
+            if d_l_prime < 1:
                 per_label_PCA_dict[str(label)] = None
                 continue
-
-            # Fit PCA with baseline examples of the current label
             per_label_PCA = PCA(n_components=d_l_prime)
             per_label_PCA.fit(E_l)
-
-            # Store the PCA model in the dictionary
             per_label_PCA_dict[str(label)] = per_label_PCA
 
-        # Store the per-label sample counts in the baseline
         self.per_label_n_samples_dict = per_label_n_samples_dict
-
         return batch_PCA, per_label_PCA_dict
 
 
@@ -482,62 +476,39 @@ class StandardBaselineEstimator(BaselineEstimatorMethod):
     #     return baseline
 
     def estimate_baseline(self, E, Y):
-        """ Estimates the baseline.
-
-        Args:
-            E (np.array): Embedding vectors of shape (m, n_e), where m is the number of samples and n_e the embedding dimensionality.
-            Y (np.array): Labels (predicted/original) of shape (m, 1), where m is the number of samples.
-
-        Returns:
-            BaselineClass: Returns the baseline objects with the estimated models.
-        """
-        # Fit PCAs from the embedding vectors
+        print("Debug: Inside estimate_baseline")
         batch_PCA, per_label_PCA_dict = self._fit_pca(E, Y)
-
-        # Reduce the embedding dimensionality of the entire batch with the batch_PCA
         E_reduced = batch_PCA.transform(E)
-
-        # Estimate the mean vector and the covariance matrix for the entire batch
         batch_mean = fdd.get_mean(E_reduced)
         batch_covariance = fdd.get_covariance(E_reduced)
-
-        # Counts the batch number of samples
         batch_n_samples = len(Y)
 
-        # Dictionary containing the per-label mean vector - "l": mean_l
         per_label_mean_dict = {}
-
-        # Dictionary containing the per-label covariance matrix - "l": covariance_l
         per_label_covariance_dict = {}
 
         for label in self.label_list:
-            # Select examples of the current label (predicted/original)
-            E_l_idxs = np.nonzero(Y == label)[0]  # Extract the first element of the tuple
-            E_l = E[E_l_idxs]
-
-            # Skip if no samples for this label or PCA is None
+            print(f"Debug: Processing label {label} in estimate_baseline")
+            comparison_result = Y == label
+            print(f"Debug: Y == label result shape: {comparison_result.shape}, dtype: {comparison_result.dtype}")
+            E_l_idxs = np.nonzero(Y == label)[0]
+            print(f"Debug: E_l_idxs for label {label}: {E_l_idxs}, type: {type(E_l_idxs)}, shape: {E_l_idxs.shape}")
+            try:
+                E_l = E[E_l_idxs]
+            except Exception as e:
+                print(f"Debug: Failed to index E with E_l_idxs for label {label}: {e}")
+                raise
             if len(E_l) == 0 or per_label_PCA_dict[str(label)] is None:
                 per_label_mean_dict[str(label)] = None
                 per_label_covariance_dict[str(label)] = None
                 continue
-
-            # Reduce the embedding dimensionality with PCA_l
             E_l_reduced = per_label_PCA_dict[str(label)].transform(E_l)
-
-            # Estimate the mean vector and the covariance matrix for the label l
             mean_l = fdd.get_mean(E_l_reduced)
             covariance_l = fdd.get_covariance(E_l_reduced)
-
-            # Store the mean vector and the covariance matrix in the dictionary
             per_label_mean_dict[str(label)] = mean_l
             per_label_covariance_dict[str(label)] = covariance_l
 
-        # Create a Baseline object
         baseline = BaselineClass()
-
-        # Fit the Baseline info
         baseline.fit(self.label_list, self.batch_n_pc, self.per_label_n_pc,
                     per_label_mean_dict, per_label_covariance_dict, per_label_PCA_dict,
                     batch_mean, batch_covariance, batch_PCA, batch_n_samples)
-
         return baseline
