@@ -347,7 +347,7 @@ class DriftLens:
         # return window_distribution_distances_dict
 
     @staticmethod
-    def _compute_frechet_distribution_distances(label_list, baseline, E_w, Y_w, window_id=0):
+    def _compute_frechet_distribution_distances(label_list, baseline, E_w, Y_w, window_id=0, use_extended_metric=False):
         """ Computes the Fréchet distribution distance (FID) per-batch and per-label.
 
         Args:
@@ -356,6 +356,7 @@ class DriftLens:
             E_w: The embeddings of the current window.
             Y_w: The predicted labels of the current window.
             window_id: The ID of the current window.
+            use_extended_metric (bool): If True, use the extended metric with higher-order moments.
 
         Returns:
             dict: A dictionary containing the per-batch and per-label distribution distances.
@@ -371,10 +372,22 @@ class DriftLens:
         mean_w_batch = fdd.get_mean(E_w_reduced)
         covariance_w_batch = fdd.get_covariance(E_w_reduced)
 
-        distribution_distance_batch = fdd.frechet_distance(mean_b_batch,
-                                                        mean_w_batch,
-                                                        covariance_b_batch,
-                                                        covariance_w_batch)
+        if use_extended_metric:
+            skewness_b_batch = fdd.get_skewness(E_w_reduced)
+            kurtosis_b_batch = fdd.get_kurtosis(E_w_reduced)
+            skewness_w_batch = fdd.get_skewness(E_w_reduced)
+            kurtosis_w_batch = fdd.get_kurtosis(E_w_reduced)
+            distribution_distance_batch = fdd.extended_frechet_distance(
+                mean_b_batch, mean_w_batch,
+                covariance_b_batch, covariance_w_batch,
+                skewness_b_batch, skewness_w_batch,
+                kurtosis_b_batch, kurtosis_w_batch
+            )
+        else:
+            distribution_distance_batch = fdd.frechet_distance(
+                mean_b_batch, mean_w_batch,
+                covariance_b_batch, covariance_w_batch
+            )
 
         window_distribution_distances_dict["per-batch"] = distribution_distance_batch
         window_distribution_distances_dict["per-label"] = {}
@@ -389,7 +402,7 @@ class DriftLens:
                 continue
 
             # Select examples of the current window w predicted with label l
-            E_w_l_idxs = np.nonzero(Y_w == label)
+            E_w_l_idxs = np.nonzero(Y_w == label)[0]  # Extract the first element of the tuple
             E_w_l = E_w[E_w_l_idxs]
 
             # Skip if no samples for this label in the window
@@ -404,10 +417,22 @@ class DriftLens:
             mean_w_l = fdd.get_mean(E_w_l_reduced)
             covariance_w_l = fdd.get_covariance(E_w_l_reduced)
 
-            distribution_distance_l = fdd.frechet_distance(mean_b_l,
-                                                        mean_w_l,
-                                                        covariance_b_l,
-                                                        covariance_w_l)
+            if use_extended_metric:
+                skewness_b_l = baseline.get_skewness_by_label(label)
+                kurtosis_b_l = baseline.get_kurtosis_by_label(label)
+                skewness_w_l = fdd.get_skewness(E_w_l_reduced)
+                kurtosis_w_l = fdd.get_kurtosis(E_w_l_reduced)
+                distribution_distance_l = fdd.extended_frechet_distance(
+                    mean_b_l, mean_w_l,
+                    covariance_b_l, covariance_w_l,
+                    skewness_b_l, skewness_w_l,
+                    kurtosis_b_l, kurtosis_w_l
+                )
+            else:
+                distribution_distance_l = fdd.frechet_distance(
+                    mean_b_l, mean_w_l,
+                    covariance_b_l, covariance_w_l
+                )
 
             window_distribution_distances_dict["per-label"][str(label)] = distribution_distance_l
 

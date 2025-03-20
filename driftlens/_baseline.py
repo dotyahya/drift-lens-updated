@@ -386,12 +386,16 @@ class BaselineEstimatorMethod(ABC):
 
         # Fit a per-label PCA for each label - "l": PCA_l
         per_label_PCA_dict = {}
+        per_label_n_samples_dict = {}  # Store the number of samples per label
 
         for label in self.label_list:
             # Select examples of the current label (predicted/original)
-            E_l_idxs = np.nonzero(Y == label)  # Indices of embedding vectors E for label l
+            E_l_idxs = np.nonzero(Y == label)[0]  # Extract the first element of the tuple
             E_l = E[E_l_idxs]  # Embedding vectors E for label l
             m_l = len(E_l)  # Number of samples for this label
+
+            # Store the number of samples for weighted FDD
+            per_label_n_samples_dict[str(label)] = m_l
 
             # Adaptive dimensionality reduction: ensure n_components <= number of samples
             d_l_prime = min(m_l, self.per_label_n_pc, E.shape[1])  # Also ensure <= embedding dimensionality
@@ -405,6 +409,9 @@ class BaselineEstimatorMethod(ABC):
 
             # Store the PCA model in the dictionary
             per_label_PCA_dict[str(label)] = per_label_PCA
+
+        # Store the per-label sample counts in the baseline
+        self.per_label_n_samples_dict = per_label_n_samples_dict
 
         return batch_PCA, per_label_PCA_dict
 
@@ -505,7 +512,7 @@ class StandardBaselineEstimator(BaselineEstimatorMethod):
 
         for label in self.label_list:
             # Select examples of the current label (predicted/original)
-            E_l_idxs = np.nonzero(Y == label)
+            E_l_idxs = np.nonzero(Y == label)[0]  # Extract the first element of the tuple
             E_l = E[E_l_idxs]
 
             # Skip if no samples for this label or PCA is None
