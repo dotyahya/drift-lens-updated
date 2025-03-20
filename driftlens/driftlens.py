@@ -319,17 +319,83 @@ class DriftLens:
                                                            covariance_b_batch,
                                                            covariance_w_batch)
 
+        # window_distribution_distances_dict["per-batch"] = distribution_distance_batch
+        # window_distribution_distances_dict["per-label"] = {}
+
+        # for label in label_list:
+
+        #     mean_b_l = baseline.get_mean_vector_by_label(label)
+        #     covariance_b_l = baseline.get_covariance_matrix_by_label(label)
+
+        #     # Select examples of of the current window w predicted with label l
+        #     E_w_l_idxs = np.nonzero(Y_w == label)
+        #     E_w_l = E_w[E_w_l_idxs]
+
+        #     # Reduce the embedding dimensionality with PCA_l for current window w
+        #     E_w_l_reduced = baseline.get_PCA_model_by_label(label).transform(E_w_l)
+
+        #     # Estimate the mean vector and the covariance matrix for the label l in the current window w
+        #     mean_w_l = fdd.get_mean(E_w_l_reduced)
+        #     covariance_w_l = fdd.get_covariance(E_w_l_reduced)
+
+        #     distribution_distance_l = fdd.frechet_distance(mean_b_l,
+        #                                                    mean_w_l,
+        #                                                    covariance_b_l,
+        #                                                    covariance_w_l)
+
+        #     window_distribution_distances_dict["per-label"][str(label)] = distribution_distance_l
+        # return window_distribution_distances_dict
+
+    @staticmethod
+    def _compute_frechet_distribution_distances(label_list, baseline, E_w, Y_w, window_id=0):
+        """ Computes the Fréchet distribution distance (FID) per-batch and per-label.
+
+        Args:
+            label_list (:obj:`list(str)`): List of labels.
+            baseline (:obj:`BaselineClass`): The baseline object.
+            E_w: The embeddings of the current window.
+            Y_w: The predicted labels of the current window.
+            window_id: The ID of the current window.
+
+        Returns:
+            dict: A dictionary containing the per-batch and per-label distribution distances.
+        """
+        window_distribution_distances_dict = {"window_id": window_id}
+
+        mean_b_batch = baseline.get_batch_mean_vector()
+        covariance_b_batch = baseline.get_batch_covariance_matrix()
+
+        # Reduce the embedding dimensionality with PCA for the entire current window w
+        E_w_reduced = baseline.get_batch_PCA_model().transform(E_w)
+
+        mean_w_batch = fdd.get_mean(E_w_reduced)
+        covariance_w_batch = fdd.get_covariance(E_w_reduced)
+
+        distribution_distance_batch = fdd.frechet_distance(mean_b_batch,
+                                                        mean_w_batch,
+                                                        covariance_b_batch,
+                                                        covariance_w_batch)
+
         window_distribution_distances_dict["per-batch"] = distribution_distance_batch
         window_distribution_distances_dict["per-label"] = {}
 
         for label in label_list:
-
             mean_b_l = baseline.get_mean_vector_by_label(label)
             covariance_b_l = baseline.get_covariance_matrix_by_label(label)
 
-            # Select examples of of the current window w predicted with label l
+            # Skip if mean or covariance is None (due to no samples in baseline)
+            if mean_b_l is None or covariance_b_l is None:
+                window_distribution_distances_dict["per-label"][str(label)] = 0.0
+                continue
+
+            # Select examples of the current window w predicted with label l
             E_w_l_idxs = np.nonzero(Y_w == label)
             E_w_l = E_w[E_w_l_idxs]
+
+            # Skip if no samples for this label in the window
+            if len(E_w_l) == 0:
+                window_distribution_distances_dict["per-label"][str(label)] = 0.0
+                continue
 
             # Reduce the embedding dimensionality with PCA_l for current window w
             E_w_l_reduced = baseline.get_PCA_model_by_label(label).transform(E_w_l)
@@ -339,11 +405,12 @@ class DriftLens:
             covariance_w_l = fdd.get_covariance(E_w_l_reduced)
 
             distribution_distance_l = fdd.frechet_distance(mean_b_l,
-                                                           mean_w_l,
-                                                           covariance_b_l,
-                                                           covariance_w_l)
+                                                        mean_w_l,
+                                                        covariance_b_l,
+                                                        covariance_w_l)
 
             window_distribution_distances_dict["per-label"][str(label)] = distribution_distance_l
+
         return window_distribution_distances_dict
 
     @staticmethod
